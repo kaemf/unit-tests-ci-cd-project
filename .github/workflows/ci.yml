@@ -1,0 +1,63 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+    - name: Checkout код
+      uses: actions/checkout@v4
+
+    - name: Налаштування Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Встановлення залежностей
+      run: npm ci
+
+    - name: Запуск лінтера (ESLint)
+      run: npm run lint
+
+    - name: Збірка проєкту
+      run: npm run build
+
+    - name: Запуск unit-тестів
+      run: npm test -- --coverage
+
+    - name: Завантаження звіту про покриття коду
+      uses: actions/upload-artifact@v4
+      if: matrix.node-version == '20.x'
+      with:
+        name: coverage-report
+        path: coverage/
+
+    - name: Відображення результатів покриття
+      if: matrix.node-version == '20.x'
+      run: |
+        echo "## Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+        cat coverage/coverage-summary.json || echo "Coverage summary not found"
+
+    - name: Перевірка якості коду
+      if: success()
+      run: |
+        echo "✅ Всі тести пройшли успішно!"
+        echo "✅ Лінтер не виявив помилок!"
+        echo "✅ Збірка завершена без помилок!"
+
+    - name: Повідомлення про помилку
+      if: failure()
+      run: |
+        echo "❌ Pipeline завершився з помилкою!"
+        echo "Будь ласка, перевірте логи вище для деталей."
